@@ -131,17 +131,20 @@ class BaseManager(object):
              callback=None, **kwargs):
         """Emit a message to a single client, a room, or all the clients
         connected to the namespace."""
-        if namespace not in self.rooms or room not in self.rooms[namespace]:
+        if not isinstance(room, list):
+            room = [room]
+        if namespace not in self.rooms or any(single_room not in self.rooms[namespace] for single_room in room):
             return
         if not isinstance(skip_sid, list):
             skip_sid = [skip_sid]
-        for sid in self.get_participants(namespace, room):
-            if sid not in skip_sid:
-                if callback is not None:
-                    id = self._generate_ack_id(sid, namespace, callback)
-                else:
-                    id = None
-                self.server._emit_internal(sid, event, data, namespace, id)
+        for single_room in room:
+            for sid in self.get_participants(namespace, single_room):
+                if sid not in skip_sid:
+                    if callback is not None:
+                        id = self._generate_ack_id(sid, namespace, callback)
+                    else:
+                        id = None
+                    self.server._emit_internal(sid, event, data, namespace, id)
 
     def trigger_callback(self, sid, namespace, id, data):
         """Invoke an application callback."""

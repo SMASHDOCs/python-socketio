@@ -15,19 +15,22 @@ class AsyncManager(BaseManager):
 
         Note: this method is a coroutine.
         """
-        if namespace not in self.rooms or room not in self.rooms[namespace]:
+        if not isinstance(room, list):
+            room = [room]
+        if namespace not in self.rooms or any(single_room not in self.rooms[namespace] for single_room in room):
             return
         tasks = []
         if not isinstance(skip_sid, list):
             skip_sid = [skip_sid]
-        for sid in self.get_participants(namespace, room):
-            if sid not in skip_sid:
-                if callback is not None:
-                    id = self._generate_ack_id(sid, namespace, callback)
-                else:
-                    id = None
-                tasks.append(self.server._emit_internal(sid, event, data,
-                                                        namespace, id))
+        for single_room in room:
+            for sid in self.get_participants(namespace, single_room):
+                if sid not in skip_sid:
+                    if callback is not None:
+                        id = self._generate_ack_id(sid, namespace, callback)
+                    else:
+                        id = None
+                    tasks.append(self.server._emit_internal(sid, event, data,
+                                                            namespace, id))
         if tasks == []:  # pragma: no cover
             return
         await asyncio.wait(tasks)
