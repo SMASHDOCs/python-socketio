@@ -10,19 +10,21 @@ class AsyncManager(BaseManager):
 
     async def emit(self, event, data, namespace, room=None, skip_sid=None,
                    callback=None, **kwargs):
-        """Emit a message to a single client, a room, or all the clients
+        """Emit a message to a single client, a room, multiple rooms or all the clients
         connected to the namespace.
 
         Note: this method is a coroutine.
         """
         if not isinstance(room, list):
             room = [room]
-        if namespace not in self.rooms or any(single_room not in self.rooms[namespace] for single_room in room):
+        if namespace not in self.rooms:
             return
         tasks = []
         if not isinstance(skip_sid, list):
             skip_sid = [skip_sid]
         for single_room in room:
+            if single_room not in self.rooms[namespace]:
+                continue
             for sid in self.get_participants(namespace, single_room):
                 if sid not in skip_sid:
                     if callback is not None:
