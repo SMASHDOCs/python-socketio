@@ -1,5 +1,95 @@
 # python-socketio change log
 
+**Release 5.7.1** - 2022-07-15
+
+- Add `namespaces` argument to `Server` and `AsyncServer` [#822](https://github.com/miguelgrinberg/python-socketio/issues/822) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/efe87d867a205493654107d381bdb8b619b8ab2d))
+- Add missing `await` in asyncio server [#952](https://github.com/miguelgrinberg/python-socketio/issues/952) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/d4e69fb7ceecdb98584f36e085a186eb4da23b07)) (thanks **sjrodahl**!)
+
+**Release 5.7.0** - 2022-07-04
+
+- Server refuses connections on unknown namespaces [#822](https://github.com/miguelgrinberg/python-socketio/issues/822) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/44715012dc0d578b067a9a389c8aef2ce39f65c1))
+- Do not send ACK packet for unknown events [#824](https://github.com/miguelgrinberg/python-socketio/issues/824) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/268fe12ffa68f7af8881c75695c287c09490cef9))
+- Fix Python 3.11 deprecation warning [#941](https://github.com/miguelgrinberg/python-socketio/issues/941) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/4b697815c3da4574fca8b759d21a4e0800dafc50)) (thanks **Jérôme Boulmier**!)
+- Correct handling of RedisError exception [#919](https://github.com/miguelgrinberg/python-socketio/issues/919) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/98318fbdde2c4dcfba15d1b0aaf266b599e81e0c))
+- Update Django example ([commit](https://github.com/miguelgrinberg/python-socketio/commit/dc7ac74c1d2c97544056541736d644060837a080))
+- Documentation fix for async client ([commit](https://github.com/miguelgrinberg/python-socketio/commit/5b9134617759a1b64adb2f9aba0974c732576cc4))
+- Update documentation of asyncio server ([commit](https://github.com/miguelgrinberg/python-socketio/commit/98f3cb4664ff10c0bb17826b11564644bed99fd6))
+- Fix documentation typo [#948](https://github.com/miguelgrinberg/python-socketio/issues/948) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/f888446b330146484325b568cdc2303c9b35c095)) (thanks **mostlycryptic**!)
+
+**Release 5.6.0** - 2022-04-24
+
+- Catch and log errors in pubsub listening thread [#889](https://github.com/miguelgrinberg/python-socketio/issues/889) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/f2ae136dcd724d56353b783092c448d6e638635f))
+- Use new asyncio support in redis package [#911](https://github.com/miguelgrinberg/python-socketio/issues/911) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/0e7691b77605de00dedcbf87e415bb79fcd7f2aa))
+- Add support for aiopiko version 7 and higher [#897](https://github.com/miguelgrinberg/python-socketio/issues/897) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/b4b55e1fb5e9d837b3301b5b873d9a7fe2a12023)) (thanks **Dmitriy**!)
+- Fixed documentation typo [#910](https://github.com/miguelgrinberg/python-socketio/issues/910) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/16243e7c5f95f73f1f17b6febbf23c6483c17c62)) (thanks **Omar Costa Hamido**!)
+- Fix aiohttp example's background task [#881](https://github.com/miguelgrinberg/python-socketio/issues/881) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/fb9648575ef5bd529579f854f141df52d9e000ed))
+- Bump sanic from 0.8 to 20.12.6 in /examples/server/sanic [#875](https://github.com/miguelgrinberg/python-socketio/issues/875) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/342f2e3fe9a3f973a491326b19fa4f96705b9b7e)) (thanks **dependabot[bot]**!)
+- Add application name to Sanic example [#892](https://github.com/miguelgrinberg/python-socketio/issues/892) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/4d5e36d36f865bf0527cfeb486a4e7f917b28717)) (thanks **Florian Metzger-Noel**!)
+
+**Release 5.5.2** - 2022-02-15
+
+- Connect with an empty auth object instead of `None` [#861](https://github.com/miguelgrinberg/python-socketio/issues/861) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/1fb7a76575426dd58a5e9c0e01646302ccc96188))
+- Fix indentation in the "Rooms" docs example. [#872](https://github.com/miguelgrinberg/python-socketio/issues/872) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/3336181f9ce5fe737d675f8343f18a885c651ebd)) (thanks **Ezio Melotti**!)
+- Remove 3.6 and pypy-3.6 builds, add 3.10 and pypy-3.8 ([commit](https://github.com/miguelgrinberg/python-socketio/commit/ed5679a7cb01963b44a5004e1236b7e8b485aa0b))
+
+**Release 5.5.1** - 2022-01-11
+
+- Support multiple Kafka servers ([commit](https://github.com/miguelgrinberg/python-socketio/commit/4ee3649514b98c50cc0bf70d3f269389da52772d)) (thanks **sparkingdark**!)
+- Include example code in flake8 pass ([commit](https://github.com/miguelgrinberg/python-socketio/commit/273a4b0439c84560d403662d8eba4122c28ba0d8))
+
+**Release 5.5.0** - 2021-11-14
+
+- Option to disable the SIGINT handler in the client [#792](https://github.com/miguelgrinberg/python-socketio/issues/792) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/ea84b9b1c714b02eaf1081f4e37fd130a3159d8c))
+- Do not invoke reserved events on a catch-all handler [#814](https://github.com/miguelgrinberg/python-socketio/issues/814) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/34f34e53d650dde605f5f4a98d7a70936524a1b8))
+- Use correct binary packet types in the msgpack packet encoder [#811](https://github.com/miguelgrinberg/python-socketio/issues/811) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/60735dd4c2fc87ed863d7dbf7de361500d963dd3))
+- Add missing `call()` method to namespace classes [#800](https://github.com/miguelgrinberg/python-socketio/issues/800) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/32db48d12ceb44d7a02fd9f05047b47c7ed3f4a5))
+- Add missing `to` argument to namespace `emit()` and `send()` methods [#810](https://github.com/miguelgrinberg/python-socketio/issues/810) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/ed08a01e65635160923f3d6d5755df74d53274e1))
+- Configure Redis pubsub to skip subscription messages ([commit](https://github.com/miguelgrinberg/python-socketio/commit/e8fff07b367929794e5e30cecbf252b72d307c16))
+- Migrate async Redis client manager to aioredis 2 [#771](https://github.com/miguelgrinberg/python-socketio/issues/771) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/f245191d86722244a2d3d0529d9f5ff15dfd817a)) (thanks **Sam Mosleh**!)
+- Update Python supported versions in docs ([commit](https://github.com/miguelgrinberg/python-socketio/commit/a54152f2466bad4869d9cfdad6be3a5547e0b6bc))
+- Document how to get the connection state in the client [#799](https://github.com/miguelgrinberg/python-socketio/issues/799) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/47c5f45c765ae207f58ba2675f91eaf8c79f8500))
+- Improved documentation of `start_background_task()` function ([commit](https://github.com/miguelgrinberg/python-socketio/commit/4f5bf1e9898154aa1a9896a7016ba22bfb73cdf2))
+- Improved documentation of `call()` method [#813](https://github.com/miguelgrinberg/python-socketio/issues/813) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/8c2a6ac86972bf94acafe687d2e86bdf65119960))
+- Fixed intermittent test failures [#572](https://github.com/miguelgrinberg/python-socketio/issues/572) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/db0565ada6c8891be3230bcc415e5465bd409c09))
+
+**Release 5.4.1** - 2021-10-14
+
+- Catch-all event handlers ([commit](https://github.com/miguelgrinberg/python-socketio/commit/28569d48ad74d5414a0d2a8f69d7540dbdddf066))
+- Implement disconnect method for external processes [#684](https://github.com/miguelgrinberg/python-socketio/issues/684) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/a830c9f7887df715227f4284f30e8d62680e58ce))
+
+**Release 5.4.0** - 2021-08-02
+
+- Support msgpack and custom packet serializers [#749](https://github.com/miguelgrinberg/python-socketio/issues/749) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/5159e84c49daaf2da0579bfc6ee954a9c738a076))
+- Return error packet if client connects to an already connected namespace ([commit](https://github.com/miguelgrinberg/python-socketio/commit/cb1b8ec74bee3b5247200a6fc6e3f6aab3a3f941))
+- Handle CancelledError in async pubsub managers [#750](https://github.com/miguelgrinberg/python-socketio/issues/750) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/a813bde0626c16fe693db74cbc2ea7c331a177d3))
+- More robust handling of emit's "to" argument [#689](https://github.com/miguelgrinberg/python-socketio/issues/689) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/2f0d8bbd8c4de43fe26e0f2edcd05aef3c8c71f9))
+- Remove executable permissions from setup.py, which has no shebang [#748](https://github.com/miguelgrinberg/python-socketio/issues/748) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/fb3ac958dfa2d3b04f8ec1b0221c3f4734c9f756)) (thanks **Ben Beasley**!)
+- Improved project structure ([commit](https://github.com/miguelgrinberg/python-socketio/commit/98c7ac23f231b64cc8b8c51104b792d0cd5cf361))
+
+**Release 5.3.0** - 2021-05-15
+
+- Document WebSocket support for threading mode ([commit](https://github.com/miguelgrinberg/python-socketio/commit/2f085b3338acc56a5c4625783d50ad53f5ad0c1a))
+- Allow functions to be used for URL, headers and auth data in client connection [#588](https://github.com/miguelgrinberg/python-socketio/issues/588) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/7d2e7f7eb3eb34860c2b28df1807a932ed632b54))
+- Emit events to multiple rooms [#605](https://github.com/miguelgrinberg/python-socketio/issues/605) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/2538df8bcf0e44881a7653cc684f985252c7fce0))
+- More descriptive error when joining a room on a bad namespace [#650](https://github.com/miguelgrinberg/python-socketio/issues/650) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/66068d9e968942343c840609e6e062162256111b))
+- Document the use of arguments in the `connect_error` handler [#554](https://github.com/miguelgrinberg/python-socketio/issues/554) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/d5308504d304b1bd26398309d31d0ce5fbd76e74))
+- Document that callbacks cannot be used in external processes [#1533](https://github.com/miguelgrinberg/Flask-SocketIO/issues/1533) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/703843b42b8fb7fb6a9d0152610e714e9c6fb75e))
+- Improve `start_background_task()` example in the documentation [#647](https://github.com/miguelgrinberg/python-socketio/issues/647) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/ef4ae900c5245439921e706fa46008fe5ca102d6))
+- Added Open Collective funding option ([commit](https://github.com/miguelgrinberg/python-socketio/commit/6572ad683ac87981493f69307d5e01cb15a0dacb))
+- Remove Python 2 from PyPI classifiers ([commit](https://github.com/miguelgrinberg/python-socketio/commit/a37ab00b344e035adbdc532f2760c223db118c0f))
+
+**Release 5.2.1** - 2021-04-18
+
+- Fixed incorrect handling of dashes inside the JSON payload of a packet [#675](https://github.com/miguelgrinberg/python-socketio/issues/675) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/f4e101079fdc49c673ab9433aca8346480cc9e4f))
+
+**Release 5.2.0** - 2021-04-17
+
+- Pass custom authentication data with client connection [#661](https://github.com/miguelgrinberg/python-socketio/issues/661) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/a07eedf54e535843401cd8b280c1bb24de3dfd27))
+- Configure the JSON decoder for safer parsing ([commit](https://github.com/miguelgrinberg/python-socketio/commit/81b0b849bd7329c7fef2f6a9491aeae279d7b6e5)) (thanks **Onno Kortmann**!)
+- Made parsing of id field of Socket.IO packet faster and more robust ([commit](https://github.com/miguelgrinberg/python-socketio/commit/09cb411776b9035343d7349650bc4b84715f00fd)) (thanks **Onno Kortmann**!)
+- Correct use of a trailing comma in Socket.IO packets with no id or data [#671](https://github.com/miguelgrinberg/python-socketio/issues/671) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/8d1aeb2e401713758a0a2576d0d1ea8eaf14896e))
+- Updated Socket.IO JavaScript client versions in documentation example ([commit](https://github.com/miguelgrinberg/python-socketio/commit/9ff8bf354110e860c73f3298278c8be6ba44cb64))
+
 **Release 5.1.0** - 2021-03-10
 
 - Added `wait` argument to client's connect method [#634](https://github.com/miguelgrinberg/python-socketio/issues/634) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/4da6d74f56a58e68b0aef08212347097dd73cda9))
@@ -83,6 +173,7 @@
 
 **Release 4.4.0** - 2019-11-24
 
+- Last version to support Python 2
 - Support the `connect_error` event in the client [#344](https://github.com/miguelgrinberg/python-socketio/issues/344) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/805d5f37413a1e3bbad22012237412803217b4b9))
 - Do not dispatch events for disconnected namespaces [#333](https://github.com/miguelgrinberg/python-socketio/issues/333) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/a839a36fa0fa7f0e5d8976ff47b217f6b1e8a44b))
 - Fix documentation typos [#374](https://github.com/miguelgrinberg/python-socketio/issues/374) ([commit](https://github.com/miguelgrinberg/python-socketio/commit/b60bbc0307edd0bef2c8b11197ef5a04b2d11b71)) (thanks **Dmitry Volodin**!)

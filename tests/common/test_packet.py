@@ -111,12 +111,13 @@ class TestPacket(unittest.TestCase):
 
     def test_encode_namespace_no_data(self):
         pkt = packet.Packet(packet_type=packet.EVENT, namespace='/bar')
-        assert pkt.encode() == '2/bar'
+        assert pkt.encode() == '2/bar,'
 
     def test_decode_namespace_no_data(self):
-        pkt = packet.Packet(encoded_packet='2/bar')
+        pkt = packet.Packet(encoded_packet='2/bar,')
         assert pkt.namespace == '/bar'
-        assert pkt.encode() == '2/bar'
+        assert pkt.data is None
+        assert pkt.encode() == '2/bar,'
 
     def test_encode_namespace_with_hyphens(self):
         pkt = packet.Packet(
@@ -155,6 +156,17 @@ class TestPacket(unittest.TestCase):
         pkt = packet.Packet(encoded_packet='2123["foo"]')
         assert pkt.id == 123
         assert pkt.encode() == '2123["foo"]'
+
+    def test_decode_id_long(self):
+        pkt = packet.Packet(encoded_packet='2' + '1' * 100 + '["foo"]')
+        assert pkt.id == int('1' * 100)
+        assert pkt.data == ['foo']
+
+    def test_decode_id_too_long(self):
+        with pytest.raises(ValueError):
+            packet.Packet(encoded_packet='2' + '1' * 101)
+        with pytest.raises(ValueError):
+            packet.Packet(encoded_packet='2' + '1' * 101 + '["foo"]')
 
     def test_encode_id_no_data(self):
         pkt = packet.Packet(packet_type=packet.EVENT, id=123)
@@ -246,6 +258,15 @@ class TestPacket(unittest.TestCase):
         assert pkt.add_attachment(b'789')
         with pytest.raises(ValueError):
             pkt.add_attachment(b'123')
+
+    def test_decode_attachment_count_too_long(self):
+        with pytest.raises(ValueError):
+            packet.Packet(encoded_packet='6' + ('1' * 11) + '-{"a":"123"}')
+
+    def test_decode_dash_in_payload(self):
+        pkt = packet.Packet(encoded_packet='6{"a":"0123456789-"}')
+        assert pkt.data["a"] == "0123456789-"
+        assert pkt.attachment_count == 0
 
     def test_data_is_binary_list(self):
         pkt = packet.Packet()

@@ -56,11 +56,12 @@ class TestNamespace(unittest.TestCase):
     def test_emit(self):
         ns = namespace.Namespace('/foo')
         ns._set_server(mock.MagicMock())
-        ns.emit('ev', data='data', room='room', skip_sid='skip', callback='cb')
+        ns.emit('ev', data='data', to='room', skip_sid='skip', callback='cb')
         ns.server.emit.assert_called_with(
             'ev',
             data='data',
-            room='room',
+            to='room',
+            room=None,
             skip_sid='skip',
             namespace='/foo',
             callback='cb',
@@ -76,6 +77,7 @@ class TestNamespace(unittest.TestCase):
         ns.server.emit.assert_called_with(
             'ev',
             data='data',
+            to=None,
             room='room',
             skip_sid='skip',
             namespace='/bar',
@@ -85,10 +87,11 @@ class TestNamespace(unittest.TestCase):
     def test_send(self):
         ns = namespace.Namespace('/foo')
         ns._set_server(mock.MagicMock())
-        ns.send(data='data', room='room', skip_sid='skip', callback='cb')
+        ns.send(data='data', to='room', skip_sid='skip', callback='cb')
         ns.server.send.assert_called_with(
             'data',
-            room='room',
+            to='room',
+            room=None,
             skip_sid='skip',
             namespace='/foo',
             callback='cb',
@@ -102,10 +105,39 @@ class TestNamespace(unittest.TestCase):
         )
         ns.server.send.assert_called_with(
             'data',
+            to=None,
             room='room',
             skip_sid='skip',
             namespace='/bar',
             callback='cb',
+        )
+
+    def test_call(self):
+        ns = namespace.Namespace('/foo')
+        ns._set_server(mock.MagicMock())
+        ns.call('ev', data='data', to='sid')
+        ns.server.call.assert_called_with(
+            'ev',
+            data='data',
+            to='sid',
+            sid=None,
+            namespace='/foo',
+            timeout=None,
+        )
+        ns.call(
+            'ev',
+            data='data',
+            sid='sid',
+            namespace='/bar',
+            timeout=45,
+        )
+        ns.server.call.assert_called_with(
+            'ev',
+            data='data',
+            to=None,
+            sid='sid',
+            namespace='/bar',
+            timeout=45,
         )
 
     def test_enter_room(self):
@@ -198,6 +230,17 @@ class TestNamespace(unittest.TestCase):
         ns.send(data='data', namespace='/bar', callback='cb')
         ns.client.send.assert_called_with(
             'data', namespace='/bar', callback='cb'
+        )
+
+    def test_call_client(self):
+        ns = namespace.ClientNamespace('/foo')
+        ns._set_client(mock.MagicMock())
+        ns.call('ev', data='data')
+        ns.client.call.assert_called_with(
+            'ev', data='data', namespace='/foo', timeout=None)
+        ns.call('ev', data='data', namespace='/bar', timeout=45)
+        ns.client.call.assert_called_with(
+            'ev', data='data', namespace='/bar', timeout=45
         )
 
     def test_disconnect_client(self):

@@ -29,7 +29,15 @@ def _run(coro):
 @unittest.skipIf(sys.version_info < (3, 5), 'only for Python 3.5+')
 class TestAsyncPubSubManager(unittest.TestCase):
     def setUp(self):
+        id = 0
+
+        def generate_id():
+            nonlocal id
+            id += 1
+            return str(id)
+
         mock_server = mock.MagicMock()
+        mock_server.eio.generate_id = generate_id
         mock_server._emit_internal = AsyncMock()
         mock_server.disconnect = AsyncMock()
         self.pm = asyncio_pubsub_manager.AsyncPubSubManager()
@@ -167,6 +175,19 @@ class TestAsyncPubSubManager(unittest.TestCase):
         self.pm._publish.mock.assert_called_once_with(
             {'method': 'disconnect', 'sid': sid, 'namespace': '/foo'}
         )
+
+    def test_disconnect(self):
+        _run(self.pm.disconnect('foo', '/'))
+        self.pm._publish.mock.assert_called_once_with(
+            {'method': 'disconnect', 'sid': 'foo', 'namespace': '/'}
+        )
+
+    def test_disconnect_ignore_queue(self):
+        sid = self.pm.connect('123', '/')
+        self.pm.pre_disconnect(sid, '/')
+        _run(self.pm.disconnect(sid, '/', ignore_queue=True))
+        self.pm._publish.mock.assert_not_called()
+        assert self.pm.is_connected(sid, '/') is False
 
     def test_close_room(self):
         _run(self.pm.close_room('foo'))
@@ -409,7 +430,7 @@ class TestAsyncPubSubManager(unittest.TestCase):
         self.pm._handle_disconnect = AsyncMock()
         self.pm._handle_close_room = AsyncMock()
 
-        def messages():
+        async def messages():
             import pickle
 
             yield {'method': 'emit', 'value': 'foo'}
@@ -420,12 +441,10 @@ class TestAsyncPubSubManager(unittest.TestCase):
             yield pickle.dumps({'method': 'close_room', 'value': 'baz'})
             yield 'bad json'
             yield b'bad pickled'
+            raise asyncio.CancelledError()  # force the thread to exit
 
-        self.pm._listen = AsyncMock(side_effect=list(messages()))
-        try:
-            _run(self.pm._thread())
-        except StopIteration:
-            pass
+        self.pm._listen = messages
+        _run(self.pm._thread())
 
         self.pm._handle_emit.mock.assert_called_once_with(
             {'method': 'emit', 'value': 'foo'}
@@ -438,4 +457,22 @@ class TestAsyncPubSubManager(unittest.TestCase):
         )
         self.pm._handle_close_room.mock.assert_called_once_with(
             {'method': 'close_room', 'value': 'baz'}
+        )
+
+    def test_background_thread_exception(self):
+        self.pm._handle_emit = AsyncMock(side_effect=[ValueError(),
+                                                      asyncio.CancelledError])
+
+        async def messages():
+            yield {'method': 'emit', 'value': 'foo'}
+            yield {'method': 'emit', 'value': 'bar'}
+
+        self.pm._listen = messages
+        _run(self.pm._thread())
+
+        self.pm._handle_emit.mock.assert_any_call(
+            {'method': 'emit', 'value': 'foo'}
+        )
+        self.pm._handle_emit.mock.assert_called_with(
+            {'method': 'emit', 'value': 'bar'}
         )

@@ -1,11 +1,12 @@
-import json
 import logging
 import unittest
 from unittest import mock
 
+from engineio import json
 import pytest
 
 from socketio import exceptions
+from socketio import msgpack_packet
 from socketio import namespace
 from socketio import packet
 from socketio import server
@@ -29,6 +30,7 @@ class TestServer(unittest.TestCase):
         assert s.manager == mgr
         assert s.eio.on.call_count == 3
         assert s.async_handlers
+        assert s.packet_class == packet.Packet
 
     def test_on_event(self, eio):
         s = server.Server()
@@ -354,15 +356,52 @@ class TestServer(unittest.TestCase):
         s._handle_eio_connect('456', 'environ')
         assert s.manager.initialize.call_count == 1
 
+    def test_handle_connect_with_default_implied_namespaces(self, eio):
+        s = server.Server()
+        s._handle_eio_connect('123', 'environ')
+        s._handle_eio_message('123', '0')
+        s._handle_eio_message('123', '0/foo,')
+        assert s.manager.is_connected('1', '/')
+        assert not s.manager.is_connected('2', '/foo')
+
+    def test_handle_connect_with_implied_namespaces(self, eio):
+        s = server.Server(namespaces=['/foo'])
+        s._handle_eio_connect('123', 'environ')
+        s._handle_eio_message('123', '0')
+        s._handle_eio_message('123', '0/foo,')
+        assert not s.manager.is_connected('1', '/')
+        assert s.manager.is_connected('1', '/foo')
+
+    def test_handle_connect_with_all_implied_namespaces(self, eio):
+        s = server.Server(namespaces='*')
+        s._handle_eio_connect('123', 'environ')
+        s._handle_eio_message('123', '0')
+        s._handle_eio_message('123', '0/foo,')
+        assert s.manager.is_connected('1', '/')
+        assert s.manager.is_connected('2', '/foo')
+
     def test_handle_connect_namespace(self, eio):
         s = server.Server()
         handler = mock.MagicMock()
         s.on('connect', handler, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         assert s.manager.is_connected('1', '/foo')
         handler.assert_called_once_with('1', 'environ')
         s.eio.send.assert_called_once_with('123', '0/foo,{"sid":"1"}')
+
+    def test_handle_connect_namespace_twice(self, eio):
+        s = server.Server()
+        handler = mock.MagicMock()
+        s.on('connect', handler, namespace='/foo')
+        s._handle_eio_connect('123', 'environ')
+        s._handle_eio_message('123', '0/foo,')
+        s._handle_eio_message('123', '0/foo,')
+        assert s.manager.is_connected('1', '/foo')
+        handler.assert_called_once_with('1', 'environ')
+        s.eio.send.assert_any_call('123', '0/foo,{"sid":"1"}')
+        print(s.eio.send.call_args_list)
+        s.eio.send.assert_any_call('123', '4/foo,"Unable to connect"')
 
     def test_handle_connect_always_connect(self, eio):
         s = server.Server(always_connect=True)
@@ -396,7 +435,7 @@ class TestServer(unittest.TestCase):
         handler = mock.MagicMock(return_value=False)
         s.on('connect', handler, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         assert not s.manager.is_connected('1', '/foo')
         handler.assert_called_once_with('1', 'environ')
         assert not s.manager.is_connected('1', '/foo')
@@ -422,7 +461,7 @@ class TestServer(unittest.TestCase):
         handler = mock.MagicMock(return_value=False)
         s.on('connect', handler, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         assert not s.manager.is_connected('1', '/foo')
         handler.assert_called_once_with('1', 'environ')
         s.eio.send.assert_any_call('123', '0/foo,{"sid":"1"}')
@@ -464,7 +503,7 @@ class TestServer(unittest.TestCase):
         )
         s.on('connect', handler, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         assert not s.manager.is_connected('1', '/foo')
         s.eio.send.assert_called_once_with(
             '123', '4/foo,{"message":"fail_reason","data":1}'
@@ -478,7 +517,7 @@ class TestServer(unittest.TestCase):
         )
         s.on('connect', handler, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         assert not s.manager.is_connected('1', '/foo')
         s.eio.send.assert_called_once_with(
             '123', '4/foo,{"message":"Connection rejected by server"}')
@@ -493,7 +532,8 @@ class TestServer(unittest.TestCase):
         s._handle_eio_message('123', '0')
         s._handle_eio_disconnect('123')
         handler.assert_called_once_with('1')
-        s.manager.disconnect.assert_called_once_with('1', '/')
+        s.manager.disconnect.assert_called_once_with('1', '/',
+                                                     ignore_queue=True)
         assert s.environ == {}
 
     def test_handle_disconnect_namespace(self, eio):
@@ -503,7 +543,7 @@ class TestServer(unittest.TestCase):
         handler_namespace = mock.MagicMock()
         s.on('disconnect', handler_namespace, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         s._handle_eio_disconnect('123')
         handler.assert_not_called()
         handler_namespace.assert_called_once_with('1')
@@ -516,8 +556,8 @@ class TestServer(unittest.TestCase):
         handler_namespace = mock.MagicMock()
         s.on('disconnect', handler_namespace, namespace='/foo')
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
-        s._handle_eio_message('123', '1/foo')
+        s._handle_eio_message('123', '0/foo,')
+        s._handle_eio_message('123', '1/foo,')
         assert handler.call_count == 0
         handler_namespace.assert_called_once_with('1')
         assert s.environ == {'123': 'environ'}
@@ -531,17 +571,27 @@ class TestServer(unittest.TestCase):
         s = server.Server(async_handlers=False)
         s.manager.connect('123', '/')
         handler = mock.MagicMock()
-        s.on('my message', handler)
+        catchall_handler = mock.MagicMock()
+        s.on('msg', handler)
+        s.on('*', catchall_handler)
+        s._handle_eio_message('123', '2["msg","a","b"]')
         s._handle_eio_message('123', '2["my message","a","b","c"]')
-        handler.assert_called_once_with('1', 'a', 'b', 'c')
+        handler.assert_called_once_with('1', 'a', 'b')
+        catchall_handler.assert_called_once_with(
+            'my message', '1', 'a', 'b', 'c')
 
     def test_handle_event_with_namespace(self, eio):
         s = server.Server(async_handlers=False)
         s.manager.connect('123', '/foo')
         handler = mock.MagicMock()
-        s.on('my message', handler, namespace='/foo')
+        catchall_handler = mock.MagicMock()
+        s.on('msg', handler, namespace='/foo')
+        s.on('*', catchall_handler, namespace='/foo')
+        s._handle_eio_message('123', '2/foo,["msg","a","b"]')
         s._handle_eio_message('123', '2/foo,["my message","a","b","c"]')
-        handler.assert_called_once_with('1', 'a', 'b', 'c')
+        handler.assert_called_once_with('1', 'a', 'b')
+        catchall_handler.assert_called_once_with(
+            'my message', '1', 'a', 'b', 'c')
 
     def test_handle_event_with_disconnected_namespace(self, eio):
         s = server.Server(async_handlers=False)
@@ -586,6 +636,14 @@ class TestServer(unittest.TestCase):
         s._handle_eio_message('123', '21000["my message","foo"]')
         handler.assert_called_once_with(sid, 'foo')
         s.eio.send.assert_called_once_with('123', '31000["foo"]')
+
+    def test_handle_unknown_event_with_ack(self, eio):
+        s = server.Server(async_handlers=False)
+        s.manager.connect('123', '/')
+        handler = mock.MagicMock(return_value='foo')
+        s.on('my message', handler)
+        s._handle_eio_message('123', '21000["another message","foo"]')
+        s.eio.send.assert_not_called()
 
     def test_handle_event_with_ack_none(self, eio):
         s = server.Server(async_handlers=False)
@@ -638,6 +696,7 @@ class TestServer(unittest.TestCase):
 
     def test_send_with_ack(self, eio):
         s = server.Server()
+        s.handlers['/'] = {}
         s._handle_eio_connect('123', 'environ')
         s._handle_eio_message('123', '0')
         cb = mock.MagicMock()
@@ -650,8 +709,9 @@ class TestServer(unittest.TestCase):
 
     def test_send_with_ack_namespace(self, eio):
         s = server.Server()
+        s.handlers['/foo'] = {}
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         cb = mock.MagicMock()
         id = s.manager._generate_ack_id('1', cb)
         s._emit_internal('123', 'my event', ['foo'], namespace='/foo', id=id)
@@ -671,6 +731,8 @@ class TestServer(unittest.TestCase):
             fake_session = session
 
         s = server.Server()
+        s.handlers['/'] = {}
+        s.handlers['/ns'] = {}
         s.eio.get_session = fake_get_session
         s.eio.save_session = fake_save_session
         s._handle_eio_connect('123', 'environ')
@@ -696,6 +758,7 @@ class TestServer(unittest.TestCase):
 
     def test_disconnect(self, eio):
         s = server.Server()
+        s.handlers['/'] = {}
         s._handle_eio_connect('123', 'environ')
         s._handle_eio_message('123', '0')
         s.disconnect('1')
@@ -703,6 +766,7 @@ class TestServer(unittest.TestCase):
 
     def test_disconnect_ignore_queue(self, eio):
         s = server.Server()
+        s.handlers['/'] = {}
         s._handle_eio_connect('123', 'environ')
         s._handle_eio_message('123', '0')
         s.disconnect('1', ignore_queue=True)
@@ -710,10 +774,11 @@ class TestServer(unittest.TestCase):
 
     def test_disconnect_namespace(self, eio):
         s = server.Server()
+        s.handlers['/foo'] = {}
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         s.disconnect('1', namespace='/foo')
-        s.eio.send.assert_any_call('123', '1/foo')
+        s.eio.send.assert_any_call('123', '1/foo,')
 
     def test_disconnect_twice(self, eio):
         s = server.Server()
@@ -727,7 +792,7 @@ class TestServer(unittest.TestCase):
     def test_disconnect_twice_namespace(self, eio):
         s = server.Server()
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         s.disconnect('123', namespace='/foo')
         calls = s.eio.send.call_count
         s.disconnect('123', namespace='/foo')
@@ -755,7 +820,7 @@ class TestServer(unittest.TestCase):
         s = server.Server(async_handlers=False)
         s.register_namespace(MyNamespace('/foo'))
         s._handle_eio_connect('123', 'environ')
-        s._handle_eio_message('123', '0/foo')
+        s._handle_eio_message('123', '0/foo,')
         assert result['result'] == ('1', 'environ')
         s._handle_eio_message('123', '2/foo,["foo","a"]')
         assert result['result'] == ('1', 'a')
@@ -788,6 +853,7 @@ class TestServer(unittest.TestCase):
 
     def test_get_environ(self, eio):
         s = server.Server()
+        s.handlers['/'] = {}
         s._handle_eio_connect('123', 'environ')
         s._handle_eio_message('123', '0')
         sid = s.manager.sid_from_eio_sid('123', '/')
@@ -812,6 +878,17 @@ class TestServer(unittest.TestCase):
         eio.assert_called_once_with(
             **{'logger': 'foo', 'async_handlers': False}
         )
+
+    def test_msgpack(self, eio):
+        s = server.Server(serializer='msgpack')
+        assert s.packet_class == msgpack_packet.MsgPackPacket
+
+    def test_custom_serializer(self, eio):
+        class CustomPacket(packet.Packet):
+            pass
+
+        s = server.Server(serializer=CustomPacket)
+        assert s.packet_class == CustomPacket
 
     def test_custom_json(self, eio):
         # Warning: this test cannot run in parallel with other tests, as it

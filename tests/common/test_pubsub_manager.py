@@ -9,9 +9,17 @@ from socketio import base_manager
 from socketio import pubsub_manager
 
 
-class TestBaseManager(unittest.TestCase):
+class TestPubSubManager(unittest.TestCase):
     def setUp(self):
+        id = 0
+
+        def generate_id():
+            nonlocal id
+            id += 1
+            return str(id)
+
         mock_server = mock.MagicMock()
+        mock_server.eio.generate_id = generate_id
         self.pm = pubsub_manager.PubSubManager()
         self.pm._publish = mock.MagicMock()
         self.pm.set_server(mock_server)
@@ -160,6 +168,19 @@ class TestBaseManager(unittest.TestCase):
         self.pm._publish.assert_called_once_with(
             {'method': 'disconnect', 'sid': sid, 'namespace': '/foo'}
         )
+
+    def test_disconnect(self):
+        self.pm.disconnect('foo')
+        self.pm._publish.assert_called_once_with(
+            {'method': 'disconnect', 'sid': 'foo', 'namespace': '/'}
+        )
+
+    def test_disconnect_ignore_queue(self):
+        sid = self.pm.connect('123', '/')
+        self.pm.pre_disconnect(sid, '/')
+        self.pm.disconnect(sid, ignore_queue=True)
+        self.pm._publish.assert_not_called()
+        assert not self.pm.is_connected(sid, '/')
 
     def test_close_room(self):
         self.pm.close_room('foo')
@@ -379,4 +400,24 @@ class TestBaseManager(unittest.TestCase):
         )
         self.pm._handle_close_room.assert_called_once_with(
             {'method': 'close_room', 'value': 'baz'}
+        )
+
+    def test_background_thread_exception(self):
+        self.pm._handle_emit = mock.MagicMock(side_effect=[ValueError(), None])
+
+        def messages():
+            yield {'method': 'emit', 'value': 'foo'}
+            yield {'method': 'emit', 'value': 'bar'}
+
+        self.pm._listen = mock.MagicMock(side_effect=messages)
+        try:
+            self.pm._thread()
+        except StopIteration:
+            pass
+
+        self.pm._handle_emit.assert_any_call(
+            {'method': 'emit', 'value': 'foo'}
+        )
+        self.pm._handle_emit.assert_called_with(
+            {'method': 'emit', 'value': 'bar'}
         )

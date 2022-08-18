@@ -65,6 +65,31 @@ or can also be coroutines::
     async def message(data):
         print('I received a message!')
 
+If the server includes arguments with an event, those are passed to the
+handler function as arguments.
+
+Catch-All Event Handlers
+------------------------
+
+A "catch-all" event handler is invoked for any events that do not have an
+event handler. You can define a catch-all handler using ``'*'`` as event name::
+
+   @sio.on('*')
+   def catch_all(event, data):
+       pass
+
+Asyncio clients can also use a coroutine::
+
+   @sio.on('*')
+   async def catch_all(event, data):
+      pass
+
+A catch-all event handler receives the event name as a first argument. The
+remaining arguments are the same as for a regular event handler.
+
+Connect, Connect Error and Disconnect Event Handlers
+----------------------------------------------------
+
 The ``connect``, ``connect_error`` and ``disconnect`` events are special; they 
 are invoked automatically when a client connects or disconnects from the
 server::
@@ -74,22 +99,27 @@ server::
         print("I'm connected!")
 
     @sio.event
-    def connect_error():
+    def connect_error(data):
         print("The connection failed!")
 
     @sio.event
     def disconnect():
         print("I'm disconnected!")
 
-Note that the ``disconnect`` handler is invoked for application initiated
-disconnects, server initiated disconnects, or accidental disconnects, for 
-example due to networking failures. In the case of an accidental
-disconnection, the client is going to attempt to reconnect immediately after
-invoking the disconnect handler. As soon as the connection is re-established
-the connect handler will be invoked once again.
+The ``connect_error`` handler is invoked when a connection attempt fails. If
+the server provides arguments, these are passed on to the handler. The server
+can use an argument to provide information to the client regarding the
+connection failure.
 
-If the server includes arguments with an event, those are passed to the
-handler function as arguments.
+The ``disconnect`` handler is invoked for application initiated disconnects,
+server initiated disconnects, or accidental disconnects, for example due to
+networking failures. In the case of an accidental disconnection, the client is
+going to attempt to reconnect immediately after invoking the disconnect
+handler. As soon as the connection is re-established the connect handler will
+be invoked once again.
+
+The ``connect``, ``connect_error`` and ``disconnect`` events have to be
+defined explicitly and are not invoked on a catch-all event handler.
 
 Connecting to a Server
 ----------------------
@@ -272,7 +302,7 @@ start a custom background task::
         # do some background work here!
         pass
 
-    sio.start_background_task(my_background_task, 123)
+    task = sio.start_background_task(my_background_task, 123)
 
 The arguments passed to this method are the background function and any
 positional or keyword arguments to invoke the function with. 
@@ -283,7 +313,7 @@ Here is the ``asyncio`` version::
         # do some background work here!
         pass
 
-    sio.start_background_task(my_background_task, 123)
+    task = sio.start_background_task(my_background_task, 123)
 
 Note that this function is not a coroutine, since it does not wait for the
 background function to end. The background function must be a coroutine.

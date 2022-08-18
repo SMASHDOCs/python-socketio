@@ -1,6 +1,8 @@
 import unittest
 from unittest import mock
 
+import pytest
+
 from socketio import base_manager
 
 
@@ -119,6 +121,11 @@ class TestBaseManager(unittest.TestCase):
         self.bm.connect('123', '/foo')
         self.bm.disconnect('123', '/bar')  # should not assert
 
+    def test_enter_room_bad_namespace(self):
+        sid = self.bm.connect('123', '/')
+        with pytest.raises(ValueError):
+            self.bm.enter_room(sid, '/foo', 'bar')
+
     def test_trigger_callback(self):
         sid1 = self.bm.connect('123', '/')
         sid2 = self.bm.connect('123', '/foo')
@@ -215,6 +222,27 @@ class TestBaseManager(unittest.TestCase):
         )
         self.bm.server._emit_internal.assert_any_call(
             '456', 'my event', {'foo': 'bar'}, '/foo', None
+        )
+
+    def test_emit_to_rooms(self):
+        sid1 = self.bm.connect('123', '/foo')
+        self.bm.enter_room(sid1, '/foo', 'bar')
+        sid2 = self.bm.connect('456', '/foo')
+        self.bm.enter_room(sid2, '/foo', 'bar')
+        self.bm.enter_room(sid2, '/foo', 'baz')
+        sid3 = self.bm.connect('789', '/foo')
+        self.bm.enter_room(sid3, '/foo', 'baz')
+        self.bm.emit('my event', {'foo': 'bar'}, namespace='/foo',
+                     room=['bar', 'baz'])
+        assert self.bm.server._emit_internal.call_count == 3
+        self.bm.server._emit_internal.assert_any_call(
+            '123', 'my event', {'foo': 'bar'}, '/foo', None
+        )
+        self.bm.server._emit_internal.assert_any_call(
+            '456', 'my event', {'foo': 'bar'}, '/foo', None
+        )
+        self.bm.server._emit_internal.assert_any_call(
+            '789', 'my event', {'foo': 'bar'}, '/foo', None
         )
 
     def test_emit_to_all(self):

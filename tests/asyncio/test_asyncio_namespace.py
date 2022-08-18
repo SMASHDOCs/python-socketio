@@ -93,13 +93,14 @@ class TestAsyncNamespace(unittest.TestCase):
         ns._set_server(mock_server)
         _run(
             ns.emit(
-                'ev', data='data', room='room', skip_sid='skip', callback='cb'
+                'ev', data='data', to='room', skip_sid='skip', callback='cb'
             )
         )
         ns.server.emit.mock.assert_called_with(
             'ev',
             data='data',
-            room='room',
+            to='room',
+            room=None,
             skip_sid='skip',
             namespace='/foo',
             callback='cb',
@@ -117,6 +118,7 @@ class TestAsyncNamespace(unittest.TestCase):
         ns.server.emit.mock.assert_called_with(
             'ev',
             data='data',
+            to=None,
             room='room',
             skip_sid='skip',
             namespace='/bar',
@@ -128,10 +130,11 @@ class TestAsyncNamespace(unittest.TestCase):
         mock_server = mock.MagicMock()
         mock_server.send = AsyncMock()
         ns._set_server(mock_server)
-        _run(ns.send(data='data', room='room', skip_sid='skip', callback='cb'))
+        _run(ns.send(data='data', to='room', skip_sid='skip', callback='cb'))
         ns.server.send.mock.assert_called_with(
             'data',
-            room='room',
+            to='room',
+            room=None,
             skip_sid='skip',
             namespace='/foo',
             callback='cb',
@@ -147,10 +150,36 @@ class TestAsyncNamespace(unittest.TestCase):
         )
         ns.server.send.mock.assert_called_with(
             'data',
+            to=None,
             room='room',
             skip_sid='skip',
             namespace='/bar',
             callback='cb',
+        )
+
+    def test_call(self):
+        ns = asyncio_namespace.AsyncNamespace('/foo')
+        mock_server = mock.MagicMock()
+        mock_server.call = AsyncMock()
+        ns._set_server(mock_server)
+        _run(ns.call('ev', data='data', to='sid'))
+        ns.server.call.mock.assert_called_with(
+            'ev',
+            data='data',
+            to='sid',
+            sid=None,
+            namespace='/foo',
+            timeout=None,
+        )
+        _run(ns.call('ev', data='data', sid='sid', namespace='/bar',
+                     timeout=45))
+        ns.server.call.mock.assert_called_with(
+            'ev',
+            data='data',
+            to=None,
+            sid='sid',
+            namespace='/bar',
+            timeout=45,
         )
 
     def test_enter_room(self):
@@ -292,6 +321,20 @@ class TestAsyncNamespace(unittest.TestCase):
         _run(ns.send(data='data', namespace='/bar', callback='cb'))
         ns.client.send.mock.assert_called_with(
             'data', namespace='/bar', callback='cb'
+        )
+
+    def test_call_client(self):
+        ns = asyncio_namespace.AsyncClientNamespace('/foo')
+        mock_client = mock.MagicMock()
+        mock_client.call = AsyncMock()
+        ns._set_client(mock_client)
+        _run(ns.call('ev', data='data'))
+        ns.client.call.mock.assert_called_with(
+            'ev', data='data', namespace='/foo', timeout=None
+        )
+        _run(ns.call('ev', data='data', namespace='/bar', timeout=45))
+        ns.client.call.mock.assert_called_with(
+            'ev', data='data', namespace='/bar', timeout=45
         )
 
     def test_disconnect_client(self):

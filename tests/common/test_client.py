@@ -1,16 +1,17 @@
-import json
 import logging
 import sys
 import unittest
 from unittest import mock
 
 from engineio import exceptions as engineio_exceptions
+from engineio import json
 from engineio import packet as engineio_packet
 import pytest
 
 from socketio import asyncio_namespace
 from socketio import client
 from socketio import exceptions
+from socketio import msgpack_packet
 from socketio import namespace
 from socketio import packet
 
@@ -28,6 +29,7 @@ class TestClient(unittest.TestCase):
             reconnection_delay=5,
             reconnection_delay_max=10,
             randomization_factor=0.2,
+            handle_sigint=False,
             foo='bar',
         )
         assert not c.reconnection
@@ -35,7 +37,9 @@ class TestClient(unittest.TestCase):
         assert c.reconnection_delay == 5
         assert c.reconnection_delay_max == 10
         assert c.randomization_factor == 0.2
-        engineio_client_class().assert_called_once_with(foo='bar')
+        assert not c.handle_sigint
+        engineio_client_class().assert_called_once_with(
+            foo='bar', handle_sigint=False)
         assert c.connection_url is None
         assert c.connection_headers is None
         assert c.connection_transports is None
@@ -49,8 +53,20 @@ class TestClient(unittest.TestCase):
         assert c.callbacks == {}
         assert c._binary_packet is None
         assert c._reconnect_task is None
+        assert c.packet_class == packet.Packet
 
-    def test_custon_json(self):
+    def test_msgpack(self):
+        c = client.Client(serializer='msgpack')
+        assert c.packet_class == msgpack_packet.MsgPackPacket
+
+    def test_custom_serializer(self):
+        class CustomPacket(packet.Packet):
+            pass
+
+        c = client.Client(serializer=CustomPacket)
+        assert c.packet_class == CustomPacket
+
+    def test_custom_json(self):
         client.Client()
         assert packet.Packet.json == json
         assert engineio_packet.Packet.json == json
@@ -76,7 +92,8 @@ class TestClient(unittest.TestCase):
     @mock.patch('socketio.client.Client._engineio_client_class')
     def test_engineio_logger(self, engineio_client_class):
         client.Client(engineio_logger='foo')
-        engineio_client_class().assert_called_once_with(logger='foo')
+        engineio_client_class().assert_called_once_with(
+            handle_sigint=True, logger='foo')
 
     def test_on_event(self):
         c = client.Client()
@@ -154,6 +171,7 @@ class TestClient(unittest.TestCase):
         c.connect(
             'url',
             headers='headers',
+            auth='auth',
             transports='transports',
             namespaces=['/foo', '/', '/bar'],
             socketio_path='path',
@@ -161,9 +179,29 @@ class TestClient(unittest.TestCase):
         )
         assert c.connection_url == 'url'
         assert c.connection_headers == 'headers'
+        assert c.connection_auth == 'auth'
         assert c.connection_transports == 'transports'
         assert c.connection_namespaces == ['/foo', '/', '/bar']
         assert c.socketio_path == 'path'
+        c.eio.connect.assert_called_once_with(
+            'url',
+            headers='headers',
+            transports='transports',
+            engineio_path='path',
+        )
+
+    def test_connect_functions(self):
+        c = client.Client()
+        c.eio.connect = mock.MagicMock()
+        c.connect(
+            lambda: 'url',
+            headers=lambda: 'headers',
+            auth='auth',
+            transports='transports',
+            namespaces=['/foo', '/', '/bar'],
+            socketio_path='path',
+            wait=False,
+        )
         c.eio.connect.assert_called_once_with(
             'url',
             headers='headers',
@@ -900,16 +938,25 @@ class TestClient(unittest.TestCase):
     def test_trigger_event(self):
         c = client.Client()
         handler = mock.MagicMock()
+        catchall_handler = mock.MagicMock()
         c.on('foo', handler)
+        c.on('*', catchall_handler)
         c._trigger_event('foo', '/', 1, '2')
+        c._trigger_event('bar', '/', 1, '2', 3)
+        c._trigger_event('connect', '/')  # should not trigger
         handler.assert_called_once_with(1, '2')
+        catchall_handler.assert_called_once_with('bar', 1, '2', 3)
 
     def test_trigger_event_namespace(self):
         c = client.Client()
         handler = mock.MagicMock()
+        catchall_handler = mock.MagicMock()
         c.on('foo', handler, namespace='/bar')
+        c.on('*', catchall_handler, namespace='/bar')
         c._trigger_event('foo', '/bar', 1, '2')
+        c._trigger_event('bar', '/bar', 1, '2', 3)
         handler.assert_called_once_with(1, '2')
+        catchall_handler.assert_called_once_with('bar', 1, '2', 3)
 
     def test_trigger_event_class_namespace(self):
         c = client.Client()
@@ -1008,18 +1055,44 @@ class TestClient(unittest.TestCase):
     def test_handle_eio_connect(self):
         c = client.Client()
         c.connection_namespaces = ['/', '/foo']
+        c.connection_auth = 'auth'
         c._send_packet = mock.MagicMock()
         c.eio.sid = 'foo'
         assert c.sid is None
         c._handle_eio_connect()
         assert c.sid == 'foo'
         assert c._send_packet.call_count == 2
-        expected_packet = packet.Packet(packet.CONNECT, namespace='/')
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/')
         assert (
             c._send_packet.call_args_list[0][0][0].encode()
             == expected_packet.encode()
         )
-        expected_packet = packet.Packet(packet.CONNECT, namespace='/foo')
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/foo')
+        assert (
+            c._send_packet.call_args_list[1][0][0].encode()
+            == expected_packet.encode()
+        )
+
+    def test_handle_eio_connect_function(self):
+        c = client.Client()
+        c.connection_namespaces = ['/', '/foo']
+        c.connection_auth = lambda: 'auth'
+        c._send_packet = mock.MagicMock()
+        c.eio.sid = 'foo'
+        assert c.sid is None
+        c._handle_eio_connect()
+        assert c.sid == 'foo'
+        assert c._send_packet.call_count == 2
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/')
+        assert (
+            c._send_packet.call_args_list[0][0][0].encode()
+            == expected_packet.encode()
+        )
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/foo')
         assert (
             c._send_packet.call_args_list[1][0][0].encode()
             == expected_packet.encode()

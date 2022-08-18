@@ -59,7 +59,7 @@ Socket.IO servers to integrate easily into existing WSGI or ASGI applications::
 Serving Static Files
 --------------------
 
-The Engine.IO server can be configured to serve static files to clients. This
+The Socket.IO server can be configured to serve static files to clients. This
 is particularly useful to deliver HTML, CSS and JavaScript files to clients
 when this package is used without a companion web framework.
 
@@ -177,6 +177,31 @@ For asyncio servers, event handlers can optionally be given as coroutines::
 The ``sid`` argument is the Socket.IO session id, a unique identifier of each
 client connection. All the events sent by a given client will have the same
 ``sid`` value.
+
+Catch-All Event Handlers
+------------------------
+
+A "catch-all" event handler is invoked for any events that do not have an
+event handler. You can define a catch-all handler using ``'*'`` as event name::
+
+   @sio.on('*')
+   def catch_all(event, sid, data):
+       pass
+
+Asyncio servers can also use a coroutine::
+
+   @sio.on('*')
+   async def catch_all(event, sid, data):
+      pass
+
+A catch-all event handler receives the event name as a first argument. The
+remaining arguments are the same as for a regular event handler.
+
+The ``connect`` and ``disconnect`` events have to be defined explicitly and are
+not invoked on a catch-all event handler.
+
+Connect and Disconnect Event Handlers
+-------------------------------------
 
 The ``connect`` and ``disconnect`` events are special; they are invoked
 automatically when a client connects or disconnects from the server::
@@ -300,7 +325,7 @@ that belong to a namespace can be created as methods of a subclass of
 
     sio.register_namespace(MyCustomNamespace('/test'))
 
-For asyncio based severs, namespaces must inherit from
+For asyncio based servers, namespaces must inherit from
 :class:`socketio.AsyncNamespace`, and can define event handlers as coroutines
 if desired::
 
@@ -355,9 +380,9 @@ rooms as needed and can be moved between rooms as often as necessary.
 
 ::
 
-   @sio.event
-   def begin_chat(sid):
-      sio.enter_room(sid, 'chat_users')
+    @sio.event
+    def begin_chat(sid):
+        sio.enter_room(sid, 'chat_users')
 
     @sio.event
     def exit_chat(sid):
@@ -566,6 +591,11 @@ example::
 
     # emit an event
     external_sio.emit('my event', data={'foo': 'bar'}, room='my room')
+
+A limitation of the write-only client manager object is that it cannot receive
+callbacks when emitting. When the external process needs to receive callbacks,
+using a client to connect to the server with read and write support is a better
+option than a write-only client manager.
 
 Debugging and Troubleshooting
 -----------------------------
@@ -832,11 +862,10 @@ Standard Threads
 While not comparable to eventlet and gevent in terms of performance,
 the Socket.IO server can also be configured to work with multi-threaded web
 servers that use standard Python threads. This is an ideal setup to use with
-development servers such as `Werkzeug <http://werkzeug.pocoo.org>`_. Only the
-long-polling transport is currently available when using standard threads.
+development servers such as `Werkzeug <http://werkzeug.pocoo.org>`_.
 
 Instances of class ``socketio.Server`` will automatically use the threading
-mode if neither eventlet nor gevent are not installed. To request the
+mode if neither eventlet nor gevent are installed. To request the
 threading mode explicitly, the ``async_mode`` option can be given in the
 constructor::
 
@@ -854,15 +883,22 @@ development web server based on Werkzeug::
     # ... Socket.IO and Flask handler functions ...
 
     if __name__ == '__main__':
-        app.run(threaded=True)
+        app.run()
 
-When using the threading mode, it is important to ensure that the WSGI server
-can handle multiple concurrent requests using threads, since a client can have
-up to two outstanding requests at any given time. The Werkzeug server is
-single-threaded by default, so the ``threaded=True`` option is required.
+The example that follows shows how to start an Socket.IO application using
+Gunicorn's threaded worker class::
 
-Note that servers that use worker processes instead of threads, such as
-gunicorn, do not support a Socket.IO server configured in threading mode.
+    $ gunicorn -w 1 --threads 100 module:app
+
+With the above configuration the server will be able to handle up to 100
+concurrent clients.
+
+When using standard threads, WebSocket is supported through the
+`simple-websocket <https://github.com/miguelgrinberg/simple-websocket>`_
+package, which must be installed separately. This package provides a
+multi-threaded WebSocket server that is compatible with Werkzeug and Gunicorn's
+threaded worker. Other multi-threaded web servers are not supported and will
+not enable the WebSocket transport.
 
 Scalability Notes
 ~~~~~~~~~~~~~~~~~

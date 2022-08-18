@@ -55,6 +55,7 @@ class TestAsyncClient(unittest.TestCase):
             c.connect(
                 'url',
                 headers='headers',
+                auth='auth',
                 transports='transports',
                 namespaces=['/foo', '/', '/bar'],
                 socketio_path='path',
@@ -63,9 +64,34 @@ class TestAsyncClient(unittest.TestCase):
         )
         assert c.connection_url == 'url'
         assert c.connection_headers == 'headers'
+        assert c.connection_auth == 'auth'
         assert c.connection_transports == 'transports'
         assert c.connection_namespaces == ['/foo', '/', '/bar']
         assert c.socketio_path == 'path'
+        c.eio.connect.mock.assert_called_once_with(
+            'url',
+            headers='headers',
+            transports='transports',
+            engineio_path='path',
+        )
+
+    def test_connect_functions(self):
+        async def headers():
+            return 'headers'
+
+        c = asyncio_client.AsyncClient()
+        c.eio.connect = AsyncMock()
+        _run(
+            c.connect(
+                lambda: 'url',
+                headers=headers,
+                auth='auth',
+                transports='transports',
+                namespaces=['/foo', '/', '/bar'],
+                socketio_path='path',
+                wait=False,
+            )
+        )
         c.eio.connect.mock.assert_called_once_with(
             'url',
             headers='headers',
@@ -807,16 +833,25 @@ class TestAsyncClient(unittest.TestCase):
     def test_trigger_event(self):
         c = asyncio_client.AsyncClient()
         handler = mock.MagicMock()
+        catchall_handler = mock.MagicMock()
         c.on('foo', handler)
+        c.on('*', catchall_handler)
         _run(c._trigger_event('foo', '/', 1, '2'))
+        _run(c._trigger_event('bar', '/', 1, '2', 3))
+        _run(c._trigger_event('connect', '/'))  # should not trigger
         handler.assert_called_once_with(1, '2')
+        catchall_handler.assert_called_once_with('bar', 1, '2', 3)
 
     def test_trigger_event_namespace(self):
         c = asyncio_client.AsyncClient()
         handler = AsyncMock()
+        catchall_handler = AsyncMock()
         c.on('foo', handler, namespace='/bar')
+        c.on('*', catchall_handler, namespace='/bar')
         _run(c._trigger_event('foo', '/bar', 1, '2'))
+        _run(c._trigger_event('bar', '/bar', 1, '2', 3))
         handler.mock.assert_called_once_with(1, '2')
+        catchall_handler.mock.assert_called_once_with('bar', 1, '2', 3)
 
     def test_trigger_event_class_namespace(self):
         c = asyncio_client.AsyncClient()
@@ -857,8 +892,6 @@ class TestAsyncClient(unittest.TestCase):
             side_effect=[ValueError, exceptions.ConnectionError, None]
         )
         _run(c._handle_reconnect())
-        print(wait_for.mock.call_count)  # logging to debug #572
-        print(wait_for.mock.call_args_list)
         assert wait_for.mock.call_count == 3
         assert [x[0][1] for x in asyncio.wait_for.mock.call_args_list] == [
             1.5,
@@ -880,8 +913,6 @@ class TestAsyncClient(unittest.TestCase):
             side_effect=[ValueError, exceptions.ConnectionError, None]
         )
         _run(c._handle_reconnect())
-        print(wait_for.mock.call_count)  # logging to debug #572
-        print(wait_for.mock.call_args_list)
         assert wait_for.mock.call_count == 3
         assert [x[0][1] for x in asyncio.wait_for.mock.call_args_list] == [
             1.5,
@@ -897,14 +928,12 @@ class TestAsyncClient(unittest.TestCase):
     )
     @mock.patch('socketio.client.random.random', side_effect=[1, 0, 0.5])
     def test_handle_reconnect_max_attempts(self, random, wait_for):
-        c = asyncio_client.AsyncClient(reconnection_attempts=2)
+        c = asyncio_client.AsyncClient(reconnection_attempts=2, logger=True)
         c._reconnect_task = 'foo'
         c.connect = AsyncMock(
             side_effect=[ValueError, exceptions.ConnectionError, None]
         )
         _run(c._handle_reconnect())
-        print(wait_for.mock.call_count)  # logging to debug #572
-        print(wait_for.mock.call_args_list)
         assert wait_for.mock.call_count == 2
         assert [x[0][1] for x in asyncio.wait_for.mock.call_args_list] == [
             1.5,
@@ -919,14 +948,12 @@ class TestAsyncClient(unittest.TestCase):
     )
     @mock.patch('socketio.client.random.random', side_effect=[1, 0, 0.5])
     def test_handle_reconnect_aborted(self, random, wait_for):
-        c = asyncio_client.AsyncClient()
+        c = asyncio_client.AsyncClient(logger=True)
         c._reconnect_task = 'foo'
         c.connect = AsyncMock(
             side_effect=[ValueError, exceptions.ConnectionError, None]
         )
         _run(c._handle_reconnect())
-        print(wait_for.mock.call_count)  # logging to debug #572
-        print(wait_for.mock.call_args_list)
         assert wait_for.mock.call_count == 2
         assert [x[0][1] for x in asyncio.wait_for.mock.call_args_list] == [
             1.5,
@@ -934,21 +961,47 @@ class TestAsyncClient(unittest.TestCase):
         ]
         assert c._reconnect_task == 'foo'
 
-    def test_eio_connect(self):
+    def test_handle_eio_connect(self):
         c = asyncio_client.AsyncClient()
         c.connection_namespaces = ['/', '/foo']
+        c.connection_auth = 'auth'
         c._send_packet = AsyncMock()
         c.eio.sid = 'foo'
         assert c.sid is None
         _run(c._handle_eio_connect())
         assert c.sid == 'foo'
         assert c._send_packet.mock.call_count == 2
-        expected_packet = packet.Packet(packet.CONNECT, namespace='/')
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/')
         assert (
             c._send_packet.mock.call_args_list[0][0][0].encode()
             == expected_packet.encode()
         )
-        expected_packet = packet.Packet(packet.CONNECT, namespace='/foo')
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/foo')
+        assert (
+            c._send_packet.mock.call_args_list[1][0][0].encode()
+            == expected_packet.encode()
+        )
+
+    def test_handle_eio_connect_function(self):
+        c = asyncio_client.AsyncClient()
+        c.connection_namespaces = ['/', '/foo']
+        c.connection_auth = lambda: 'auth'
+        c._send_packet = AsyncMock()
+        c.eio.sid = 'foo'
+        assert c.sid is None
+        _run(c._handle_eio_connect())
+        assert c.sid == 'foo'
+        assert c._send_packet.mock.call_count == 2
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/')
+        assert (
+            c._send_packet.mock.call_args_list[0][0][0].encode()
+            == expected_packet.encode()
+        )
+        expected_packet = packet.Packet(
+            packet.CONNECT, data='auth', namespace='/foo')
         assert (
             c._send_packet.mock.call_args_list[1][0][0].encode()
             == expected_packet.encode()
@@ -1004,7 +1057,7 @@ class TestAsyncClient(unittest.TestCase):
             _run(c._handle_eio_message('9'))
 
     def test_eio_disconnect(self):
-        c = asyncio_client.AsyncClient()
+        c = asyncio_client.AsyncClient(reconnection=False)
         c.namespaces = {'/': '1'}
         c.connected = True
         c._trigger_event = AsyncMock()
@@ -1018,7 +1071,7 @@ class TestAsyncClient(unittest.TestCase):
         assert not c.connected
 
     def test_eio_disconnect_namespaces(self):
-        c = asyncio_client.AsyncClient()
+        c = asyncio_client.AsyncClient(reconnection=False)
         c.namespaces = {'/foo': '1', '/bar': '2'}
         c.connected = True
         c._trigger_event = AsyncMock()
